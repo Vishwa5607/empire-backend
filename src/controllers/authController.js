@@ -6,13 +6,13 @@ exports.register = async (req, res) => {
   try {
     const { email, password, username, full_name } = req.body;
 
-    // Check if user exists
-    const [existing] = await db.query(
-      'SELECT id FROM users WHERE email = ? OR username = ?',
+    // Check if user exists - FIXED ✅
+    const existing = await db.query(
+      'SELECT id FROM users WHERE email = $1 OR username = $2',
       [email, username]
     );
 
-    if (existing.length > 0) {
+    if (existing.rows.length > 0) {
       return res.status(400).json({
         success: false,
         message: 'Email or username already exists'
@@ -22,21 +22,17 @@ exports.register = async (req, res) => {
     // Hash password
     const password_hash = await bcrypt.hash(password, 10);
 
-    // Insert user
-    const [result] = await db.query(
-      'INSERT INTO users (email, password_hash, username, full_name) VALUES (?, ?, ?, ?)',
+    // Insert user - FIXED ✅
+    const result = await db.query(
+      'INSERT INTO users (email, password_hash, username, full_name) VALUES ($1, $2, $3, $4) RETURNING *',
       [email, password_hash, username, full_name]
     );
 
-    // Create profile stats
-    await db.query(
-      'INSERT INTO profile_stats (user_id, member_since) VALUES (?, CURDATE())',
-      [result.insertId]
-    );
+    const newUser = result.rows[0];
 
     // Generate token
     const token = jwt.sign(
-      { userId: result.insertId, email, username },
+      { userId: newUser. id, email: newUser.email, username: newUser.username },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN }
     );
@@ -44,11 +40,12 @@ exports.register = async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'User registered successfully',
-      data: {
-        userId: result.insertId,
-        email,
-        username,
-        token
+      token:  token,
+      user: {
+        id: newUser.id,
+        email: newUser.email,
+        username: newUser.username,
+        fullName: newUser.full_name
       }
     });
   } catch (error) {
@@ -56,7 +53,7 @@ exports.register = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Registration failed',
-      error: error.message
+      error: error. message
     });
   }
 };
@@ -65,20 +62,20 @@ exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Get user
-    const [users] = await db.query(
-      'SELECT id, email, username, password_hash, full_name, profile_image_url FROM users WHERE email = ?',
+    // Get user - FIXED ✅
+    const users = await db.query(
+      'SELECT id, email, username, password_hash, full_name, profile_image_url FROM users WHERE email = $1',
       [email]
     );
 
-    if (users.length === 0) {
-      return res.status(401).json({
+    if (users.rows.length === 0) {
+      return res. status(401).json({
         success: false,
-        message: 'Invalid credentials'
+        message:  'Invalid credentials'
       });
     }
 
-    const user = users[0];
+    const user = users.rows[0];
 
     // Verify password
     const isValid = await bcrypt.compare(password, user.password_hash);
@@ -92,21 +89,21 @@ exports.login = async (req, res) => {
 
     // Generate token
     const token = jwt.sign(
-      { userId: user.id, email: user.email, username: user.username },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN }
+      { userId: user.id, email: user.email, username: user. username },
+      process.env. JWT_SECRET,
+      { expiresIn: process.env. JWT_EXPIRES_IN }
     );
 
     res.json({
       success: true,
       message: 'Login successful',
-      data: {
-        userId: user.id,
+      token: token,
+      user: {
+        id: user.id,
         email: user.email,
         username: user.username,
-        full_name: user.full_name,
-        profile_image_url: user.profile_image_url,
-        token
+        fullName: user.full_name,
+        profileImageUrl: user.profile_image_url
       }
     });
   } catch (error) {

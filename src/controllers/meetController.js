@@ -15,7 +15,7 @@ exports.getAllMeets = async (req, res) => {
 
     res.json({
       success: true,
-      data: result.rows
+      meets: result. rows  // ✅ Changed from 'data' to 'meets'
     });
   } catch (error) {
     console.error('Get meets error:', error);
@@ -39,7 +39,7 @@ exports.getMeetById = async (req, res) => {
       GROUP BY m.id, u.username, u.profile_image_url
     `, [req.params.id]);
 
-    if (meetResult.rows.length === 0) {
+    if (meetResult. rows.length === 0) {
       return res.status(404).json({
         success: false,
         message: 'Meet not found'
@@ -48,7 +48,7 @@ exports.getMeetById = async (req, res) => {
 
     // Get attendees
     const attendeesResult = await db.query(`
-      SELECT ma.*, u.username, u.profile_image_url, c.make, c.model, c.year
+      SELECT ma.*, u. username, u.profile_image_url, c.make, c. model, c.year
       FROM meet_attendees ma
       JOIN users u ON ma.user_id = u.id
       LEFT JOIN cars c ON ma.car_id = c.id
@@ -57,8 +57,8 @@ exports.getMeetById = async (req, res) => {
 
     res.json({
       success: true,
-      data: {
-        ...meetResult.rows[0],
+      meet: {
+        ... meetResult.rows[0],
         attendees: attendeesResult.rows
       }
     });
@@ -66,7 +66,7 @@ exports.getMeetById = async (req, res) => {
     console.error('Get meet error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch meet',
+      message:  'Failed to fetch meet',
       error: error.message
     });
   }
@@ -75,7 +75,7 @@ exports.getMeetById = async (req, res) => {
 exports.createMeet = async (req, res) => {
   try {
     const { title, description, location, latitude, longitude, meet_date, max_attendees, image_url } = req.body;
-    const userId = req.user.userId;
+    const userId = req. user.userId;
 
     const result = await db.query(
       `INSERT INTO meets (organizer_id, title, description, location, latitude, longitude, meet_date, max_attendees, image_url)
@@ -86,15 +86,15 @@ exports.createMeet = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Meet created successfully',
-      data: result.rows[0]
+      message:  'Meet created successfully',
+      meet: result.rows[0]
     });
   } catch (error) {
     console.error('Create meet error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to create meet',
-      error: error.message
+      error: error. message
     });
   }
 };
@@ -103,39 +103,33 @@ exports.joinMeet = async (req, res) => {
   try {
     const meetId = req.params.id;
     const userId = req.user.userId;
-    const { car_id, status = 'attending' } = req.body;
+    const { car_id } = req.body;
 
     // Check if already joined
-    const existingResult = await db.query(
+    const existing = await db.query(
       'SELECT id FROM meet_attendees WHERE meet_id = $1 AND user_id = $2',
       [meetId, userId]
     );
 
-    if (existingResult.rows.length > 0) {
-      // Update status
-      await db.query(
-        'UPDATE meet_attendees SET status = $1, car_id = $2 WHERE meet_id = $3 AND user_id = $4',
-        [status, car_id, meetId, userId]
-      );
-    } else {
-      // Insert new
-      await db.query(
-        'INSERT INTO meet_attendees (meet_id, user_id, car_id, status) VALUES ($1, $2, $3, $4)',
-        [meetId, userId, car_id, status]
-      );
-
-      // Update user stats if attending
-      if (status === 'attending') {
-        await db.query(
-          'UPDATE profile_stats SET meets_attended = meets_attended + 1 WHERE user_id = $1',
-          [userId]
-        );
-      }
+    if (existing.rows.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Already joined this meet'
+      });
     }
+
+    // Add attendee
+    const result = await db.query(
+      `INSERT INTO meet_attendees (meet_id, user_id, car_id, status)
+       VALUES ($1, $2, $3, 'attending')
+       RETURNING *`,
+      [meetId, userId, car_id || null]
+    );
 
     res.json({
       success: true,
-      message: 'Meet status updated successfully'
+      message: 'Successfully joined meet',
+      data: result.rows[0]
     });
   } catch (error) {
     console.error('Join meet error:', error);
@@ -149,17 +143,24 @@ exports.joinMeet = async (req, res) => {
 
 exports.leaveMeet = async (req, res) => {
   try {
-    const meetId = req.params.id;
+    const meetId = req. params.id;
     const userId = req.user.userId;
 
-    await db.query(
-      'DELETE FROM meet_attendees WHERE meet_id = $1 AND user_id = $2',
+    const result = await db.query(
+      'DELETE FROM meet_attendees WHERE meet_id = $1 AND user_id = $2 RETURNING *',
       [meetId, userId]
     );
 
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Not attending this meet'
+      });
+    }
+
     res.json({
       success: true,
-      message: 'Left meet successfully'
+      message: 'Successfully left meet'
     });
   } catch (error) {
     console.error('Leave meet error:', error);
