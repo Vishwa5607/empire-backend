@@ -2,16 +2,16 @@ const db = require('../config/database');
 
 exports.getAllCars = async (req, res) => {
   try {
-    const [cars] = await db.query(`
-      SELECT c.*, u.username, u.profile_image_url as owner_image
+    const result = await db.query(`
+      SELECT c.*, u. username, u.profile_image_url as owner_image
       FROM cars c
-      JOIN users u ON c.user_id = u.id
+      JOIN users u ON c.user_id = u. id
       ORDER BY c.created_at DESC
     `);
 
     res.json({
       success: true,
-      data: cars
+      cars: result.rows  // ✅ Changed from 'data' to 'cars' and use . rows
     });
   } catch (error) {
     console.error('Get cars error:', error);
@@ -25,16 +25,16 @@ exports.getAllCars = async (req, res) => {
 
 exports.getUserCars = async (req, res) => {
   try {
-    const userId = req.params.userId || req.user.userId;
+    const userId = req.params. userId || req.user.userId;
 
-    const [cars] = await db.query(
-      'SELECT * FROM cars WHERE user_id = ? ORDER BY created_at DESC',
+    const result = await db.query(
+      'SELECT * FROM cars WHERE user_id = $1 ORDER BY created_at DESC',
       [userId]
     );
 
     res.json({
       success: true,
-      data: cars
+      cars: result.rows  // ✅ Changed
     });
   } catch (error) {
     console.error('Get user cars error:', error);
@@ -48,14 +48,14 @@ exports.getUserCars = async (req, res) => {
 
 exports.getCarById = async (req, res) => {
   try {
-    const [cars] = await db.query(`
+    const result = await db.query(`
       SELECT c.*, u.username, u.profile_image_url as owner_image
       FROM cars c
-      JOIN users u ON c.user_id = u.id
-      WHERE c.id = ?
+      JOIN users u ON c. user_id = u.id
+      WHERE c.id = $1
     `, [req.params.id]);
 
-    if (cars.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(404).json({
         success: false,
         message: 'Car not found'
@@ -64,7 +64,7 @@ exports.getCarById = async (req, res) => {
 
     res.json({
       success: true,
-      data: cars[0]
+      car: result.rows[0]  // ✅ Changed
     });
   } catch (error) {
     console.error('Get car error:', error);
@@ -79,26 +79,19 @@ exports.getCarById = async (req, res) => {
 exports.createCar = async (req, res) => {
   try {
     const { make, model, year, color, vin, license_plate, image_url, stage, horsepower, torque, modifications } = req.body;
-    const userId = req.user.userId;
+    const userId = req. user.userId;
 
-    const [result] = await db.query(
+    const result = await db.query(
       `INSERT INTO cars (user_id, make, model, year, color, vin, license_plate, image_url, stage, horsepower, torque, modifications)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       RETURNING *`,
       [userId, make, model, year, color, vin, license_plate, image_url, stage, horsepower, torque, modifications]
     );
-
-    // Update user stats
-    await db.query(
-      'UPDATE profile_stats SET cars_owned = cars_owned + 1 WHERE user_id = ?',
-      [userId]
-    );
-
-    const [newCar] = await db.query('SELECT * FROM cars WHERE id = ?', [result.insertId]);
 
     res.status(201).json({
       success: true,
       message: 'Car added successfully',
-      data: newCar[0]
+      car: result.rows[0]
     });
   } catch (error) {
     console.error('Create car error:', error);
@@ -113,29 +106,29 @@ exports.createCar = async (req, res) => {
 exports.updateCar = async (req, res) => {
   try {
     const carId = req.params.id;
-    const userId = req.user.userId;
-    const updates = req.body;
+    const { make, model, year, color, vin, license_plate, image_url, stage, horsepower, torque, modifications } = req.body;
 
-    // Check ownership
-    const [cars] = await db.query('SELECT user_id FROM cars WHERE id = ?', [carId]);
-    if (cars.length === 0) {
-      return res.status(404).json({ success: false, message: 'Car not found' });
+    const result = await db.query(
+      `UPDATE cars 
+       SET make = $1, model = $2, year = $3, color = $4, vin = $5, 
+           license_plate = $6, image_url = $7, stage = $8, 
+           horsepower = $9, torque = $10, modifications = $11
+       WHERE id = $12 AND user_id = $13
+       RETURNING *`,
+      [make, model, year, color, vin, license_plate, image_url, stage, horsepower, torque, modifications, carId, req.user.userId]
+    );
+
+    if (result.rows. length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Car not found or unauthorized'
+      });
     }
-    if (cars[0].user_id !== userId) {
-      return res.status(403).json({ success: false, message: 'Unauthorized' });
-    }
-
-    const fields = Object.keys(updates).map(key => `${key} = ?`).join(', ');
-    const values = [...Object.values(updates), carId];
-
-    await db.query(`UPDATE cars SET ${fields} WHERE id = ?`, values);
-
-    const [updated] = await db.query('SELECT * FROM cars WHERE id = ?', [carId]);
 
     res.json({
       success: true,
       message: 'Car updated successfully',
-      data: updated[0]
+      car: result.rows[0]
     });
   } catch (error) {
     console.error('Update car error:', error);
@@ -150,24 +143,18 @@ exports.updateCar = async (req, res) => {
 exports.deleteCar = async (req, res) => {
   try {
     const carId = req.params.id;
-    const userId = req.user.userId;
 
-    // Check ownership
-    const [cars] = await db.query('SELECT user_id FROM cars WHERE id = ?', [carId]);
-    if (cars.length === 0) {
-      return res.status(404).json({ success: false, message: 'Car not found' });
-    }
-    if (cars[0].user_id !== userId) {
-      return res.status(403).json({ success: false, message: 'Unauthorized' });
-    }
-
-    await db.query('DELETE FROM cars WHERE id = ?', [carId]);
-
-    // Update user stats
-    await db.query(
-      'UPDATE profile_stats SET cars_owned = GREATEST(cars_owned - 1, 0) WHERE user_id = ?',
-      [userId]
+    const result = await db.query(
+      'DELETE FROM cars WHERE id = $1 AND user_id = $2 RETURNING *',
+      [carId, req.user.userId]
     );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Car not found or unauthorized'
+      });
+    }
 
     res.json({
       success: true,
@@ -178,7 +165,7 @@ exports.deleteCar = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to delete car',
-      error: error.message
+      error:  error.message
     });
   }
 };
