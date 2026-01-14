@@ -7,7 +7,7 @@ const { v4: uuidv4 } = require('uuid');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env. SUPABASE_SERVICE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY  // ✅ Matches line 5
 );
 
 class SupabaseStorageService {
