@@ -2,14 +2,17 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
-const routes = require('./routes');
+const authRoutes = require('./routes/auth');
+const carRoutes = require('./routes/cars');
+const meetRoutes = require('./routes/meets');
+const profileRoutes = require('./routes/profile');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS || '*',
+  origin: process.env. ALLOWED_ORIGINS || '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -23,7 +26,19 @@ app.use((req, res, next) => {
 });
 
 // Routes
-app.use('/api', routes);
+app.use('/api/auth', authRoutes);
+app.use('/api/cars', carRoutes);
+app.use('/api/meets', meetRoutes);
+app.use('/api/profile', profileRoutes);
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    success: true, 
+    message: 'Empire API is running',
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -31,7 +46,7 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({
     success: false,
     message: err.message || 'Internal server error',
-    error: process.env.NODE_ENV === 'development' ? err : {}
+    error:  process.env.NODE_ENV === 'development' ? err.stack : {}
   });
 });
 
