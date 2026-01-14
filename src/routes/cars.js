@@ -59,13 +59,12 @@ router.post('/', async (req, res) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         userId = decoded.userId;
       } catch (err) {
-        // Token invalid or expired, continue without userId
         console.log('⚠️ Invalid token, creating car without user association');
       }
     }
   }
 
-  // If still no userId, use a default or reject
+  // If still no userId, return error
   if (!userId) {
     return res.status(400).json({
       success: false,
@@ -86,7 +85,7 @@ router.post('/', async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Car added successfully',
-      data: result.rows[0],
+      data: result. rows[0],
     });
   } catch (error) {
     console.error('❌ Error creating car:', error);
