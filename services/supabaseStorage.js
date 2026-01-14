@@ -1,5 +1,8 @@
 const { createClient } = require('@supabase/supabase-js');
 const sharp = require('sharp');
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const { v4: uuidv4 } = require('uuid');
 
 const supabase = createClient(

@@ -11,7 +11,7 @@ exports.getAllCars = async (req, res) => {
 
     res.json({
       success: true,
-      cars: result.rows  // ✅ Changed from 'data' to 'cars' and use . rows
+      cars: result.rows  
     });
   } catch (error) {
     console.error('Get cars error:', error);
@@ -79,19 +79,19 @@ exports.getCarById = async (req, res) => {
 exports.createCar = async (req, res) => {
   try {
     const { make, model, year, color, vin, license_plate, image_url, stage, horsepower, torque, modifications } = req.body;
-    const userId = req. user.userId;
+    const userId = req.user.userId;
 
     const result = await db.query(
       `INSERT INTO cars (user_id, make, model, year, color, vin, license_plate, image_url, stage, horsepower, torque, modifications)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
-      [userId, make, model, year, color, vin, license_plate, image_url, stage, horsepower, torque, modifications]
+      [userId, make, model, year, color, vin, license_plate, image_url, stage, horsepower, torque, modifications]        
     );
 
     res.status(201).json({
       success: true,
       message: 'Car added successfully',
-      car: result.rows[0]
+      data: result.rows[0]  
     });
   } catch (error) {
     console.error('Create car error:', error);

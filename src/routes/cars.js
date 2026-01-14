@@ -1,15 +1,21 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../db');
+const pool = require('../config/database');  // ← FIXED
 const authenticateToken = require('../middleware/auth');
 const upload = require('../middleware/upload');
-const storageService = require('../services/supabaseStorage');
+const storageService = require('../../services/supabaseStorage');  // ← FIXED
+
+console.log('🚗 Cars routes loaded');
+
+// ===============================================
+// CAR CRUD ENDPOINTS
+// ===============================================
 
 // GET all cars
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT c.*, u.username 
+      `SELECT c.*, u.username
        FROM cars c
        JOIN users u ON c.user_id = u.id
        ORDER BY c.created_at DESC`
@@ -29,49 +35,9 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
-// GET single car by ID
-router.get('/:id', authenticateToken, async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const result = await pool.query(
-      `SELECT c.*, u.username 
-       FROM cars c
-       JOIN users u ON c.user_id = u.id
-       WHERE c.id = $1`,
-      [id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Car not found',
-      });
-    }
-
-    res.json({
-      success: true,
-      car: result.rows[0],
-    });
-  } catch (error) {
-    console.error('❌ Error fetching car:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch car',
-    });
-  }
-});
-
 // POST create new car
 router.post('/', authenticateToken, async (req, res) => {
-  const {
-    make,
-    model,
-    year,
-    color,
-    horsepower,
-    stage,
-  } = req.body;
+  const { make, model, year, color, horsepower, stage } = req.body;
 
   if (!make || !model || !year) {
     return res.status(400).json({
@@ -101,6 +67,169 @@ router.post('/', authenticateToken, async (req, res) => {
       success: false,
       message: 'Failed to create car',
       error:  error.message,
+    });
+  }
+});
+
+// ===============================================
+// IMAGE UPLOAD ENDPOINTS (BEFORE /:id routes!)
+// ===============================================
+
+console.log('📸 Registering image upload route:  POST /:id/images');
+
+// POST upload car image
+router.post('/:id/images', authenticateToken, upload.single('image'), async (req, res) => {
+  const { id } = req. params;
+  const { is_primary } = req.body;
+
+  console.log('📸 Image upload request received');
+  console.log('   Car ID:', id);
+  console.log('   User ID:', req.user.userId);
+  console.log('   Is Primary:', is_primary);
+
+  try {
+    // Verify car belongs to user
+    const carResult = await pool.query(
+      'SELECT * FROM cars WHERE id = $1 AND user_id = $2',
+      [id, req.user.userId]
+    );
+
+    if (carResult.rows.length === 0) {
+      return res. status(404).json({
+        success: false,
+        message:  'Car not found or unauthorized',
+      });
+    }
+
+    if (! req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No image file provided',
+      });
+    }
+
+    console.log('📤 Uploading image for car:', id);
+    console.log('📁 File size:', req.file. size, 'bytes');
+    console.log('📁 File type:', req.file.mimetype);
+
+    // Upload to Supabase
+    const imageUrl = await storageService.uploadImage(
+      req.file.buffer,
+      'CAR-IMAGE',
+      `user_${req.user.userId}/car_${id}`
+    );
+
+    // Update car's main image if primary
+    if (is_primary === 'true' || is_primary === true) {
+      const oldCar = carResult.rows[0];
+      if (oldCar.image_url) {
+        try {
+          await storageService.deleteImage(oldCar.image_url, 'CAR-IMAGE');
+        } catch (err) {
+          console.log('⚠️ Could not delete old image');
+        }
+      }
+
+      await pool.query(
+        'UPDATE cars SET image_url = $1, updated_at = NOW() WHERE id = $2',
+        [imageUrl, id]
+      );
+    }
+
+    res.json({
+      success: true,
+      message: 'Image uploaded successfully',
+      image_url: imageUrl,
+    });
+  } catch (error) {
+    console.error('❌ Error uploading car image:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to upload image',
+      error: error.message,
+    });
+  }
+});
+
+// DELETE car image
+router.delete('/:id/image', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const carResult = await pool. query(
+      'SELECT * FROM cars WHERE id = $1 AND user_id = $2',
+      [id, req.user. userId]
+    );
+
+    if (carResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Car not found or unauthorized',
+      });
+    }
+
+    const car = carResult.rows[0];
+
+    if (!car.image_url) {
+      return res.status(400).json({
+        success: false,
+        message: 'No image to delete',
+      });
+    }
+
+    await storageService.deleteImage(car.image_url, 'CAR-IMAGE');
+
+    await pool.query(
+      'UPDATE cars SET image_url = NULL, updated_at = NOW() WHERE id = $1',
+      [id]
+    );
+
+    res.json({
+      success: true,
+      message: 'Image deleted successfully',
+    });
+  } catch (error) {
+    console.error('❌ Error deleting car image:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete image',
+    });
+  }
+});
+
+// ===============================================
+// GENERIC /: id ROUTES (MUST BE LAST!)
+// ===============================================
+
+// GET single car by ID
+router.get('/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query(
+      `SELECT c.*, u.username
+       FROM cars c
+       JOIN users u ON c.user_id = u.id
+       WHERE c. id = $1`,
+      [id]
+    );
+
+    if (result.rows. length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Car not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      car: result.rows[0],
+    });
+  } catch (error) {
+    console.error('❌ Error fetching car:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch car',
     });
   }
 });
@@ -147,22 +276,22 @@ router.put('/:id', authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to update car',
-      error: error.message,
+      error:  error.message,
     });
   }
 });
 
 // DELETE car
-router.delete('/: id', authenticateToken, async (req, res) => {
+router.delete('/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
 
   try {
     const carResult = await pool.query(
       'SELECT * FROM cars WHERE id = $1 AND user_id = $2',
-      [id, req. user.userId]
+      [id, req.user.userId]
     );
 
-    if (carResult.rows. length === 0) {
+    if (carResult. rows.length === 0) {
       return res.status(404).json({
         success: false,
         message: 'Car not found or unauthorized',
@@ -174,7 +303,7 @@ router.delete('/: id', authenticateToken, async (req, res) => {
     // Delete image from storage if exists
     if (car.image_url) {
       try {
-        await storageService. deleteImage(car.image_url, 'car-images');
+        await storageService. deleteImage(car.image_url, 'CAR-IMAGE');
       } catch (err) {
         console.log('⚠️ Could not delete car image from storage');
       }
@@ -193,131 +322,7 @@ router.delete('/: id', authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to delete car',
-      error:  error.message,
-    });
-  }
-});
-
-// ===============================================
-// IMAGE UPLOAD ENDPOINTS
-// ===============================================
-
-// POST upload car image
-router.post('/:id/images', authenticateToken, upload.single('image'), async (req, res) => {
-  const { id } = req.params;
-  const { is_primary } = req.body;
-
-  console.log('📸 Image upload request received');
-  console.log('   Car ID:', id);
-  console.log('   User ID:', req.user.userId);
-  console.log('   Is Primary:', is_primary);
-
-  try {
-    // Verify car belongs to user
-    const carResult = await pool.query(
-      'SELECT * FROM cars WHERE id = $1 AND user_id = $2',
-      [id, req.user.userId]
-    );
-
-    if (carResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Car not found or unauthorized',
-      });
-    }
-
-    if (! req.file) {
-      return res.status(400).json({
-        success: false,
-        message: 'No image file provided',
-      });
-    }
-
-    console.log('📤 Uploading image for car:', id);
-    console.log('📁 File size:', req.file.size, 'bytes');
-    console.log('📁 File type:', req.file.mimetype);
-
-    // Upload to Supabase
-    const imageUrl = await storageService.uploadImage(
-      req.file.buffer,
-      'car-images',
-      `user_${req.user.userId}/car_${id}`
-    );
-
-    // Update car's main image if primary
-    if (is_primary === 'true' || is_primary === true) {
-      const oldCar = carResult.rows[0];
-      if (oldCar.image_url) {
-        try {
-          await storageService.deleteImage(oldCar.image_url, 'car-images');
-        } catch (err) {
-          console.log('⚠️ Could not delete old image');
-        }
-      }
-
-      await pool.query(
-        'UPDATE cars SET image_url = $1, updated_at = NOW() WHERE id = $2',
-        [imageUrl, id]
-      );
-    }
-
-    res.json({
-      success: true,
-      message: 'Image uploaded successfully',
-      image_url: imageUrl,
-    });
-  } catch (error) {
-    console.error('❌ Error uploading car image:', error);
-    res.status(500).json({
-      success: false,
-      message:  'Failed to upload image',
       error: error.message,
-    });
-  }
-});
-
-// DELETE car image
-router.delete('/:id/image', authenticateToken, async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const carResult = await pool.query(
-      'SELECT * FROM cars WHERE id = $1 AND user_id = $2',
-      [id, req.user.userId]
-    );
-
-    if (carResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Car not found or unauthorized',
-      });
-    }
-
-    const car = carResult.rows[0];
-
-    if (!car.image_url) {
-      return res.status(400).json({
-        success: false,
-        message: 'No image to delete',
-      });
-    }
-
-    await storageService.deleteImage(car.image_url, 'car-images');
-
-    await pool.query(
-      'UPDATE cars SET image_url = NULL, updated_at = NOW() WHERE id = $1',
-      [id]
-    );
-
-    res.json({
-      success: true,
-      message: 'Image deleted successfully',
-    });
-  } catch (error) {
-    console.error('❌ Error deleting car image:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to delete image',
     });
   }
 });

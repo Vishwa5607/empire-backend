@@ -14,6 +14,7 @@ async function testCompleteFlow() {
       email: EMAIL,
       password: PASSWORD,
     });
+    
     const token = loginResponse.data.token;
     console.log('✅ Login successful!  Token:', token. substring(0, 20) + '...\n');
 
@@ -30,10 +31,21 @@ async function testCompleteFlow() {
         stage: '2',
       },
       {
-        headers: { Authorization: `Bearer ${token}` },
+        headers:  { Authorization: `Bearer ${token}` },
       }
     );
-    const carId = carResponse.data.data.id;
+    
+    console.log('📋 Car Response:', JSON.stringify(carResponse. data, null, 2));
+    
+    // Check different possible response structures
+    const carId = carResponse.data. data?. id || carResponse.data.car?. id || carResponse.data.id;
+    
+    if (! carId) {
+      console.error('❌ Could not find car ID in response');
+      console.error('Response structure:', Object.keys(carResponse.data));
+      return;
+    }
+    
     console.log('✅ Car created with ID:', carId, '\n');
 
     // 3. Download test image
@@ -41,7 +53,7 @@ async function testCompleteFlow() {
     const imageUrl = 'https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?w=800';
     const imagePath = './test-car.jpg';
     
-    const imageResponse = await axios.get(imageUrl, { responseType: 'stream' });
+    const imageResponse = await axios. get(imageUrl, { responseType: 'stream' });
     const writer = fs.createWriteStream(imagePath);
     imageResponse.data.pipe(writer);
     
@@ -71,7 +83,7 @@ async function testCompleteFlow() {
 
     console.log('\n🎉 SUCCESS! Upload complete! ');
     console.log('🔗 Image URL:', uploadResponse.data.image_url);
-    console.log('\n📋 Full response:', JSON.stringify(uploadResponse.data, null, 2));
+    console.log('\n���� Full response:', JSON.stringify(uploadResponse.data, null, 2));
 
     // 5. Verify image is accessible
     console.log('\n🌐 Testing image URL...');
@@ -79,14 +91,23 @@ async function testCompleteFlow() {
     console.log('✅ Image is accessible!  Status:', imageCheck.status);
 
     // Cleanup
-    fs.unlinkSync(imagePath);
+    fs. unlinkSync(imagePath);
     console.log('\n🧹 Cleaned up test file');
 
   } catch (error) {
-    console.error('\n❌ Error:', error. response?.data || error.message);
+    console.error('\n❌ Error Details: ');
+    
     if (error.response) {
-      console.error('Status:', error.response.status);
-      console.error('Data:', error.response.data);
+      console.error('   Status:', error. response.status);
+      console.error('   Message:', error.response.data?.message || error.response.statusText);
+      console.error('   Full Response:', JSON. stringify(error.response.data, null, 2));
+    } else if (error.request) {
+      console.error('   No response from server');
+      console.error('   Is the server running on', BASE_URL, '?');
+      console.error('   Error:', error.message);
+    } else {
+      console.error('   Error:', error.message);
+      console.error('   Stack:', error.stack);
     }
   }
 }

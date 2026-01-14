@@ -2,36 +2,47 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
 
-// Controllers
+// Controllers (for auth and meets only)
 const authController = require('../controllers/authController');
-const carController = require('../controllers/carController');
 const meetController = require('../controllers/meetController');
 
-// Auth routes (public)
+// Route files (for cars and profile)
+const carRoutes = require('./cars');  // ← This loads src/routes/cars.js with image endpoints! 
+const profileRoutes = require('./profile');
+
+// ===============================================
+// AUTH ROUTES (using controller)
+// ===============================================
 router.post('/auth/register', authController.register);
 router.post('/auth/login', authController.login);
 
-// Car routes
-router.get('/cars', carController.getAllCars);
-router.get('/cars/:id', carController.getCarById);
-router.get('/users/:userId/cars', carController.getUserCars);
-router.post('/cars', authMiddleware, carController.createCar);
-router.put('/cars/:id', authMiddleware, carController.updateCar);
-router.delete('/cars/:id', authMiddleware, carController.deleteCar);
+// ===============================================
+// CAR ROUTES (using routes file - includes image upload!)
+// ===============================================
+router.use('/cars', carRoutes);  // ← This mounts ALL routes from src/routes/cars.js
 
-// Meet routes
+// ===============================================
+// PROFILE ROUTES
+// ===============================================
+router.use('/profile', profileRoutes);
+
+// ===============================================
+// MEET ROUTES (using controller)
+// ===============================================
 router.get('/meets', meetController.getAllMeets);
 router.get('/meets/:id', meetController.getMeetById);
 router.post('/meets', authMiddleware, meetController.createMeet);
 router.post('/meets/:id/join', authMiddleware, meetController.joinMeet);
 router.delete('/meets/:id/leave', authMiddleware, meetController.leaveMeet);
 
-// Health check
+// ===============================================
+// HEALTH CHECK
+// ===============================================
 router.get('/health', (req, res) => {
-  res.json({ 
-    success: true, 
+  res.json({
+    success: true,
     message: 'Empire API is running',
-    timestamp: new Date().toISOString()
+    timestamp:  new Date().toISOString()
   });
 });
 

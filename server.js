@@ -2,13 +2,10 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
-const authRoutes = require('./routes/auth');
-const carRoutes = require('./routes/cars');
-const meetRoutes = require('./routes/meets');
-const profileRoutes = require('./routes/profile');
+const routes = require('./src/routes');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env. PORT || 3000;
 
 // Middleware
 app.use(cors({
@@ -25,20 +22,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/cars', carRoutes);
-app.use('/api/meets', meetRoutes);
-app.use('/api/profile', profileRoutes);
-
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    success: true, 
-    message: 'Empire API is running',
-    timestamp: new Date().toISOString()
-  });
-});
+// Mount all routes under /api
+app.use('/api', routes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -46,7 +31,7 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({
     success: false,
     message: err.message || 'Internal server error',
-    error:  process.env.NODE_ENV === 'development' ? err.stack : {}
+    error: process.env.NODE_ENV === 'development' ? err.stack : {}
   });
 });
 
@@ -63,9 +48,9 @@ app.listen(PORT, () => {
   console.log(`
 ╔═══════════════════════════════════════╗
 ║   🚗 Empire Auto Club API Server     ║
-║   Environment: ${process.env.NODE_ENV || 'development'}               ║
-║   Port: ${PORT}                         ║
-║   Time: ${new Date().toLocaleString()}  ║
+║   Environment: ${process.env. NODE_ENV || 'development'}               ║
+║   Port:  ${PORT}                         ║
+║   Time:  ${new Date().toLocaleString()}  ║
 ╚═══════════════════════════════════════╝
   `);
 });

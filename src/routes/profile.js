@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../db');
+const pool = require('../config/database');
 const authenticateToken = require('../middleware/auth');
 const upload = require('../middleware/upload');
-const storageService = require('../services/supabaseStorage');
+const storageService = require('../../services/supabaseStorage');
 
 // GET user profile
 router.get('/', authenticateToken, async (req, res) => {
@@ -40,7 +40,7 @@ router.put('/', authenticateToken, async (req, res) => {
   const { full_name, bio, phone, location, instagram_handle } = req.body;
 
   try {
-    const result = await pool.query(
+    const result = await pool. query(
       `UPDATE users 
        SET full_name = COALESCE($1, full_name),
            bio = COALESCE($2, bio),
@@ -84,7 +84,7 @@ router.post('/image', authenticateToken, upload. single('image'), async (req, re
       [req.user.userId]
     );
 
-    if (userResult.rows[0]. profile_image_url) {
+    if (userResult.rows[0].profile_image_url) {
       try {
         await storageService.deleteImage(
           userResult.rows[0]. profile_image_url,
