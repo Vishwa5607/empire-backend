@@ -36,8 +36,8 @@ router.get('/', async (req, res) => {
 });
 
 // POST create new car
-router.post('/', authenticateToken, async (req, res) => {
-  const { make, model, year, color, horsepower, stage } = req.body;
+router.post('/', async (req, res) => {
+  const { make, model, year, color, horsepower, stage, user_id } = req.body;
 
   if (!make || !model || !year) {
     return res.status(400).json({
@@ -46,12 +46,39 @@ router.post('/', authenticateToken, async (req, res) => {
     });
   }
 
+  // Use user_id from request body, or from token if authenticated
+  let userId = user_id;
+  
+  // If no user_id provided, try to get from auth token
+  if (!userId) {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      try {
+        const jwt = require('jsonwebtoken');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        userId = decoded.userId;
+      } catch (err) {
+        // Token invalid or expired, continue without userId
+        console.log('⚠️ Invalid token, creating car without user association');
+      }
+    }
+  }
+
+  // If still no userId, use a default or reject
+  if (!userId) {
+    return res.status(400).json({
+      success: false,
+      message: 'User ID required (login or provide user_id)',
+    });
+  }
+
   try {
     const result = await pool.query(
       `INSERT INTO cars (user_id, make, model, year, color, horsepower, stage)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [req.user.userId, make, model, year, color || null, horsepower || null, stage || null]
+      [userId, make, model, year, color || null, horsepower || null, stage || null]
     );
 
     console.log('✅ Car created:', result.rows[0]);
@@ -66,7 +93,7 @@ router.post('/', authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to create car',
-      error:  error.message,
+      error: error.message,
     });
   }
 });
