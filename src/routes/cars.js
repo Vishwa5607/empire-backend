@@ -115,7 +115,7 @@ router.post('/:id/images', authenticateToken, upload.single('image'), async (req
     // Upload to Supabase
     const imageUrl = await storageService.uploadImage(
       req.file.buffer,
-      'CAR-IMAGE',
+      'car-images',
       `user_${req.user.userId}/car_${id}`
     );
 
@@ -124,7 +124,7 @@ router.post('/:id/images', authenticateToken, upload.single('image'), async (req
       const oldCar = carResult.rows[0];
       if (oldCar.image_url) {
         try {
-          await storageService.deleteImage(oldCar.image_url, 'CAR-IMAGE');
+          await storageService.deleteImage(oldCar.image_url, 'car-images');
         } catch (err) {
           console.log('⚠️ Could not delete old image');
         }
@@ -177,7 +177,7 @@ router.delete('/:id/image', authenticateToken, async (req, res) => {
       });
     }
 
-    await storageService.deleteImage(car.image_url, 'CAR-IMAGE');
+    await storageService.deleteImage(car.image_url, 'car-images');
 
     await pool.query(
       'UPDATE cars SET image_url = NULL, updated_at = NOW() WHERE id = $1',
@@ -303,7 +303,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     // Delete image from storage if exists
     if (car.image_url) {
       try {
-        await storageService. deleteImage(car.image_url, 'CAR-IMAGE');
+        await storageService. deleteImage(car.image_url, 'car-images');
       } catch (err) {
         console.log('⚠️ Could not delete car image from storage');
       }
