@@ -11,8 +11,8 @@ console.log('🚗 Cars routes loaded');
 // CAR CRUD ENDPOINTS
 // ===============================================
 
-// GET all cars
-router.get('/', authenticateToken, async (req, res) => {
+// GET all cars without auth
+router.get('/', async (req, res) => {  
   try {
     const result = await pool.query(
       `SELECT c.*, u.username
@@ -115,7 +115,7 @@ router.post('/:id/images', authenticateToken, upload.single('image'), async (req
     // Upload to Supabase
     const imageUrl = await storageService.uploadImage(
       req.file.buffer,
-      'car-images',
+      'car-image',
       `user_${req.user.userId}/car_${id}`
     );
 
@@ -124,7 +124,7 @@ router.post('/:id/images', authenticateToken, upload.single('image'), async (req
       const oldCar = carResult.rows[0];
       if (oldCar.image_url) {
         try {
-          await storageService.deleteImage(oldCar.image_url, 'car-images');
+          await storageService.deleteImage(oldCar.image_url, 'car-image');
         } catch (err) {
           console.log('⚠️ Could not delete old image');
         }
@@ -177,7 +177,7 @@ router.delete('/:id/image', authenticateToken, async (req, res) => {
       });
     }
 
-    await storageService.deleteImage(car.image_url, 'car-images');
+    await storageService.deleteImage(car.image_url, 'car-image');
 
     await pool.query(
       'UPDATE cars SET image_url = NULL, updated_at = NOW() WHERE id = $1',
@@ -303,7 +303,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     // Delete image from storage if exists
     if (car.image_url) {
       try {
-        await storageService. deleteImage(car.image_url, 'car-images');
+        await storageService. deleteImage(car.image_url, 'car-image');
       } catch (err) {
         console.log('⚠️ Could not delete car image from storage');
       }
