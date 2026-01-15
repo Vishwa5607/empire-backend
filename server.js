@@ -1,7 +1,12 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
+const uploadRoutes = require('./routes/upload');
 
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/cars', uploadRoutes); 
+app.use('/api/meets', meetRoutes)
 const routes = require('./src/routes');
 
 const app = express();
