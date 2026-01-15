@@ -1,20 +1,22 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
-const uploadRoutes = require('./routes/upload');
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/cars', uploadRoutes); 
-app.use('/api/meets', meetRoutes)
-const routes = require('./src/routes');
+const app = express(); // Must be here at the top!
 
-const app = express();
-const PORT = process.env. PORT || 3000;
+const routes = require('./src/routes'); // Main /api router
+
+
+const uploadRoutes = require('./src/routes/upload');
+
+// Optional: If you want direct upload routes:
+app.use('/api/cars', uploadRoutes);
+
+const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors({
-  origin: process.env. ALLOWED_ORIGINS || '*',
+  origin: process.env.ALLOWED_ORIGINS || '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -27,7 +29,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Mount all routes under /api
+// Mount all routes under /api (must be after uploadRoutes if routes overlap)
 app.use('/api', routes);
 
 // Error handling middleware
@@ -53,7 +55,7 @@ app.listen(PORT, () => {
   console.log(`
 ╔═══════════════════════════════════════╗
 ║   🚗 Empire Auto Club API Server     ║
-║   Environment: ${process.env. NODE_ENV || 'development'}               ║
+║   Environment: ${process.env.NODE_ENV || 'development'}               ║
 ║   Port:  ${PORT}                         ║
 ║   Time:  ${new Date().toLocaleString()}  ║
 ╚═══════════════════════════════════════╝

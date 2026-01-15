@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const supabase = require('../config/supabase');
-const { authenticateToken } = require('../middleware/auth');
+const  authenticateToken  = require('../middleware/auth');
 const pool = require('../config/database');
 
 // Configure multer for memory storage
@@ -23,7 +23,7 @@ const upload = multer({
 });
 
 // POST /api/cars/: id/images - Upload car image
-router.post('/: id/images', authenticateToken, upload.single('image'), async (req, res) => {
+router.post('/:id/images', authenticateToken, upload.single('image'), async (req, res) => {
   try {
     const carId = parseInt(req.params.id);
     const userId = req.user. userId;
