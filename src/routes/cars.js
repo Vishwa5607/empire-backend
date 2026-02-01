@@ -16,11 +16,11 @@ router.get('/', async (req, res) => {
   try {
     let query = `SELECT c.*, u.username
                  FROM cars c
-                 JOIN users u ON c. user_id = u.id`;
+                 JOIN users u ON c.user_id = u.id`;
     let params = [];
     
     // Check if user is authenticated
-    const authHeader = req. headers.authorization;
+    const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
       try {
@@ -54,7 +54,7 @@ router.get('/', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch cars',
-      error:  error.message,
+      error: error.message,
     });
   }
 });
@@ -68,14 +68,14 @@ router.get('/:id', authenticateToken, async (req, res) => {
       `SELECT c.*, u.username
        FROM cars c
        JOIN users u ON c.user_id = u.id
-       WHERE c. id = $1`,
+       WHERE c.id = $1`,
       [id]
     );
 
     if (result.rows.length === 0) {
-      return res. status(404).json({
+      return res.status(404).json({
         success: false,
-        message:  'Car not found',
+        message: 'Car not found',
       });
     }
 
@@ -94,7 +94,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
 // POST create new car
 router.post('/', async (req, res) => {
-  const { make, model, year, color, horsepower, stage, user_id } = req.body;
+  const { make, model, year, color, horsepower, stage, description, specs, mods, vehicle_class, user_id } = req.body;
 
   if (!make || !model || !year) {
     return res.status(400).json({
@@ -108,13 +108,13 @@ router.post('/', async (req, res) => {
   
   // If no user_id provided, try to get from auth token
   if (!userId) {
-    const authHeader = req. headers.authorization;
+    const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
       try {
         const jwt = require('jsonwebtoken');
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        userId = decoded. userId;
+        userId = decoded.userId;
       } catch (err) {
         console.log('⚠️ Invalid token, creating car without user association');
       }
@@ -131,10 +131,22 @@ router.post('/', async (req, res) => {
 
   try {
     const result = await pool.query(
-      `INSERT INTO cars (user_id, make, model, year, color, horsepower, stage)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO cars (user_id, make, model, year, color, horsepower, stage, description, specs, mods, vehicle_class)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
-      [userId, make, model, year, color || null, horsepower || null, stage || null]
+      [
+        userId, 
+        make, 
+        model, 
+        year, 
+        color || null, 
+        horsepower || null, 
+        stage || null,
+        description || null,
+        specs ? JSON.stringify(specs) : '[]',
+        mods ? JSON.stringify(mods) : '[]',
+        vehicle_class || null
+      ]
     );
 
     console.log('✅ Car created:', result.rows[0]);
@@ -149,7 +161,7 @@ router.post('/', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to create car',
-      error:  error.message,
+      error: error.message,
     });
   }
 });
@@ -157,9 +169,9 @@ router.post('/', async (req, res) => {
 // PUT update car
 router.put('/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const { make, model, year, color, horsepower, stage } = req.body;
+  const { make, model, year, color, horsepower, stage, description, specs, mods, vehicle_class } = req.body;
 
-  console.log(`🔄 Updating car ${id} with: `, { make, model, year, color, horsepower, stage });
+  console.log(`🔄 Updating car ${id} with:`, { make, model, year, color, horsepower, stage, description, specs, mods, vehicle_class });
 
   try {
     const ownerCheck = await pool.query(
@@ -182,10 +194,26 @@ router.put('/:id', authenticateToken, async (req, res) => {
         color = COALESCE($4, color),
         horsepower = COALESCE($5, horsepower),
         stage = COALESCE($6, stage),
+        description = COALESCE($7, description),
+        specs = COALESCE($8::jsonb, specs),
+        mods = COALESCE($9::jsonb, mods),
+        vehicle_class = COALESCE($10, vehicle_class),
         updated_at = NOW()
-      WHERE id = $7
+      WHERE id = $11
       RETURNING *`,
-      [make, model, year, color, horsepower, stage, id]
+      [
+        make, 
+        model, 
+        year, 
+        color, 
+        horsepower, 
+        stage,
+        description,
+        specs ? JSON.stringify(specs) : null,
+        mods ? JSON.stringify(mods) : null,
+        vehicle_class,
+        id
+      ]
     );
 
     console.log('✅ Car updated:', result.rows[0]);
@@ -193,7 +221,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
     res.json({
       success: true,
       message: 'Car updated successfully',
-      data:  result.rows[0],
+      data: result.rows[0],
     });
   } catch (error) {
     console.error('❌ Error updating car:', error);
